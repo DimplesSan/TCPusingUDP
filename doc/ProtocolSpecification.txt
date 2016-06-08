@@ -1,0 +1,47 @@
+The protocol makes use of a custom messaging format that is at most 140 bytes 
+in size.
+40 bytes are for the message header and 100 bytes for the message data(if any).
+
+Its format is as follows,
+	Header length -  4 bytes - 40 bytes of header (0 - 3)
+	Message type - 4 bytes - Init(0) / FileTransfer(1) / EndFT(2) /hash(3) / Close(4) --> (4 to 7)
+	Seq Num - 8 bytes --> (8 to 15)
+	Ack Num - 8 bytes --> (16 to 23)
+	CheckSum for payload - 8 bytes --> (24 to 31)
+	ReceiveWindow - 4 bytes --> (32 to 35)
+	Payload length - 4 bytes --> (36 to 39)
+	Payload - 100 bytes
+
+
+
+
+First the client establishes connection with the server using a 3 way handshake.
+The message type is set to 0 during the 3 way hanshake process. 
+
+Then the client'll proceed to read 1000 bytes of data from the specified file, 
+into the payload buffer. Message type is set as 1. Sequence number for the 
+segment and the checksum is calculated. All of this is packaged into a message 
+in the format specified above and is sent to the server.
+
+On the receipt, of a message of type 1, the server validates the payload against
+the checksum in the message. If the message is valid the server acknowledges the
+packet with the corresponding seq number.
+
+A sliding window is used to send the packets. Client sends a group of packets to
+the server and waits for each of them to be acknowledged. After timeout, all the 
+unacknowledged packets are retransmitted till all the packets in the 
+unacknowledged packets are acknowledged.
+
+The server holds on to all the new packets it receives and reorders them using the
+sequence numbers and sends acknowledgement for them. If a duplicate packet is
+received then the ack sent for the corresponding packet must have been lost, 
+therefore an acknowledgement for duplicate packet it re-sent to the client.
+
+Client indicates the EOF using a packet having the message type = 2
+
+Following the exchange of messages with msg. type =2, then client send the hash
+code for the entire file using a message with the type set to 3.
+The server extracts the hash code and compares it with the hash code computed by 
+it. Hash codes are generated using SHA1 algorithm on both sides.
+
+Connction is severed through the exchange of messages with the message type - 4.
